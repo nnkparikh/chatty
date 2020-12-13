@@ -27,6 +27,14 @@ provider:
   profile: neelparikh.dev
   region: us-west-2
   stage: dev
+  environment:
+    DB_DRIVER: "mysql"
+    DB_USER: ${env:DB_USER}
+    DB_PASS: ${env:DB_PASS}
+    DB_HOST: ${env:DB_HOST}
+    DB_PORT: ${env:DB_PORT}
+    DB_NAME: ${env:DB_NAME}
+    SOURCE_IP: ${env:SOURCE_IP}
 
 # you can add statements to the Lambda function's IAM Role here
 #  iamRoleStatements:
@@ -167,4 +175,108 @@ resources:
       UserPoolId: 
           Ref: ChatAppUserPools
 
+  ChatAppIGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: "chatappigw"
 
+  ChatAppVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: "10.0.110.0/20"
+      EnableDnsHostnames: True
+      EnableDnsSupport: True
+  
+  ChatAppVPCIGW:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId:
+        Ref: ChatAppIGW
+      VpcId: 
+        Ref: ChatAppVPC
+
+  ChatAppRT:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:
+        Ref: ChatAppVPC
+  
+  ChatAppPublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId:
+        Ref: ChatAppRT
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId:
+        Ref: ChatAppIGW
+
+  ChatAppRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: ChatAppRT
+      SubnetId:
+        Ref: ChatAppSubnet1
+
+  ChatAppRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId:
+        Ref: ChatAppRT
+      SubnetId:
+        Ref: ChatAppSubnet2
+      
+  ChatAppSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: "10.0.110.0/24"
+      AvailabilityZone: "${self:provider.region}a"
+      VpcId:
+        Ref: ChatAppVPC
+
+  ChatAppSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: "10.0.100.0/24"
+      AvailabilityZone: "${self:provider.region}b"
+      VpcId:
+        Ref: ChatAppVPC
+
+  ChatAppDBSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Allow connection to RDS from home."
+      SecurityGroupIngress:
+        - CidrIp: ${env:SOURCE_IP}
+          IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+      VpcId:
+        Ref: ChatAppVPC
+
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group for RDS"
+      DBSubnetGroupName: "ChatAppRDSSubnetGroup"
+      SubnetIds:
+        - Ref: ChatAppSubnet1
+        - Ref: ChatAppSubnet2
+
+  ChatAppDB:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      PubliclyAccessible: True
+      VPCSecurityGroups:
+        - Ref: ChatAppDBSG
+      DBSubnetGroupName: 
+        Ref: RDSSubnetGroup
+      AllocatedStorage: '20'
+      DBInstanceClass: db.t2.small
+      Engine: MySQL
+      MasterUsername: ${env:DB_USER}
+      MasterUserPassword: ${env:DB_PASS}
+      StorageType: gp2
+      

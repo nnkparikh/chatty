@@ -2,8 +2,10 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -12,12 +14,37 @@ import (
 	"github.com/sony/sonyflake"
 )
 
+// genMachineID: Sony implementation doesn't work with zero valued Settings
+func genMachineID() (uint16, error) {
+	as, err := net.InterfaceAddrs()
+	if err != nil {
+		log.Fatalf("Error: %s\n", err)
+	}
+
+	var ip net.IP
+	for _, a := range as {
+		ipnet, ok := a.(*net.IPNet)
+		if !ok || ipnet.IP.IsLoopback() {
+			continue
+		}
+		ip = ipnet.IP.To4()
+		break // only need to find one valid IP
+	}
+
+	if ip == nil {
+		return 0, errors.New("unable to find interface address")
+	}
+
+	return uint16(ip[2])<<8 + uint16(ip[3]), nil
+}
+
 // genSonyFlake generated unique ID
 func genSonyFlake() uint64 {
-	flake := sonyflake.NewSonyflake(sonyflake.Settings{})
+	settings := sonyflake.Settings{MachineID: genMachineID}
+	flake := sonyflake.NewSonyflake(settings)
 	id, err := flake.NextID()
 	if err != nil {
-		log.Fatalf("flake.NextID() faield with %s\n", err)
+		log.Fatalf("flake.NextID() failed with %s\n", err)
 	}
 	return id
 }
@@ -38,7 +65,7 @@ func newUserHandler(event events.CognitoEventUserPoolsPostConfirmation) (events.
 	defer db.Close()
 
 	userID := genSonyFlake()
-	fmt.Printf("Generated userId (Sonyflake): %d", userID)
+	fmt.Printf("Generated userId (Sonyflake): %d\n", userID)
 	fmt.Printf("UserName: %s\n", event.UserName)
 	fmt.Printf("UserAttributes: %s\n", event.Request.UserAttributes)
 

@@ -27,12 +27,20 @@ provider:
   profile: neelparikh.dev
   region: us-west-2
   stage: dev
+  stackName: chatapp-dev
+  vpc:
+    securityGroupIds:
+      - Ref: ChatAppDefaultSG
+    subnetIds:
+      - Ref: ChatAppSubnet1
   environment:
     DB_DRIVER: "mysql"
     DB_USER: ${env:DB_USER}
     DB_PASS: ${env:DB_PASS}
-    DB_HOST: ${env:DB_HOST}
-    DB_PORT: ${env:DB_PORT}
+    DB_HOST: 
+      Fn::GetAtt: [ChatAppDB, Endpoint.Address]
+    DB_PORT:
+      Fn::GetAtt: [ChatAppDB, Endpoint.Port]
     DB_NAME: ${env:DB_NAME}
     SOURCE_IP: ${env:SOURCE_IP}
 
@@ -132,151 +140,188 @@ functions:
 
 # you can add CloudFormation resource templates here
 resources:
- Resources:
-  ChatAppUserPools:
-      Type: AWS::Cognito::UserPool
-      Properties:
-        UserPoolName: chatapp
-        AliasAttributes:
-          - phone_number
-          - email
-          - preferred_username
-        Policies:
-          PasswordPolicy:
-            MinimumLength: 8
-        Schema:
-          - Name: email
-            Required: True
-
-  ChatAppUserPoolClient:
-      Type: AWS::Cognito::UserPoolClient
-      Properties:
-        ClientName: chatapp-client
-        UserPoolId: 
-          Ref: ChatAppUserPools
-        SupportedIdentityProviders: 
-          - COGNITO
-        GenerateSecret: False
-        CallbackURLs:
-          - https://chatapp.neelparikh.net
-        AllowedOAuthFlows:
-          - code
-          - implicit
-        AllowedOAuthScopes:
-          - openid
-          - email
-          - profile
-        AllowedOAuthFlowsUserPoolClient: True
-  
-  ChatAppDomain:
-    Type: AWS::Cognito::UserPoolDomain
-    Properties:
-      Domain: chatapp-test
-      UserPoolId: 
-          Ref: ChatAppUserPools
-
-  ChatAppIGW:
-    Type: AWS::EC2::InternetGateway
-    Properties:
-      Tags:
-        - Key: Name
-          Value: "chatappigw"
-
-  ChatAppVPC:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: "10.0.110.0/20"
-      EnableDnsHostnames: True
-      EnableDnsSupport: True
-  
-  ChatAppVPCIGW:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      InternetGatewayId:
-        Ref: ChatAppIGW
-      VpcId: 
-        Ref: ChatAppVPC
-
-  ChatAppRT:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId:
-        Ref: ChatAppVPC
-  
-  ChatAppPublicRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId:
-        Ref: ChatAppRT
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId:
-        Ref: ChatAppIGW
-
-  ChatAppRouteTableAssociation1:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId:
-        Ref: ChatAppRT
-      SubnetId:
+  Outputs:
+    DefaultSG:
+      Value:
+        Ref: ChatAppDefaultSG
+    Subnet1:
+      Value:
         Ref: ChatAppSubnet1
+    RDSEndpointAddr:
+      Value:
+        Fn::GetAtt: [ChatAppDB, Endpoint.Address]
+    RDSEndpointPort:
+      Value:
+        Fn::GetAtt: [ChatAppDB, Endpoint.Port]
 
-  ChatAppRouteTableAssociation2:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      RouteTableId:
-        Ref: ChatAppRT
-      SubnetId:
-        Ref: ChatAppSubnet2
-      
-  ChatAppSubnet1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: "10.0.110.0/24"
-      AvailabilityZone: "${self:provider.region}a"
-      VpcId:
-        Ref: ChatAppVPC
+  Resources:
+    ChatAppUserPools:
+        Type: AWS::Cognito::UserPool
+        Properties:
+          UserPoolName: chatapp
+          AliasAttributes:
+            - phone_number
+            - email
+            - preferred_username
+          Policies:
+            PasswordPolicy:
+              MinimumLength: 8
+          Schema:
+            - Name: email
+              Required: True
 
-  ChatAppSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: "10.0.100.0/24"
-      AvailabilityZone: "${self:provider.region}b"
-      VpcId:
-        Ref: ChatAppVPC
+    ChatAppUserPoolClient:
+        Type: AWS::Cognito::UserPoolClient
+        Properties:
+          ClientName: chatapp-client
+          UserPoolId: 
+            Ref: ChatAppUserPools
+          SupportedIdentityProviders: 
+            - COGNITO
+          GenerateSecret: False
+          CallbackURLs:
+            - https://chatapp.neelparikh.net
+          AllowedOAuthFlows:
+            - code
+            - implicit
+          AllowedOAuthScopes:
+            - openid
+            - email
+            - profile
+          AllowedOAuthFlowsUserPoolClient: True
+    
+    ChatAppDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: chatapp-test
+        UserPoolId: 
+            Ref: ChatAppUserPools
 
-  ChatAppDBSG:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: "Allow connection to RDS from home."
-      SecurityGroupIngress:
-        - CidrIp: ${env:SOURCE_IP}
-          IpProtocol: tcp
-          FromPort: 3306
-          ToPort: 3306
-      VpcId:
-        Ref: ChatAppVPC
+    ChatAppIGW:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: Name
+            Value: "chatappigw"
 
-  RDSSubnetGroup:
-    Type: AWS::RDS::DBSubnetGroup
-    Properties:
-      DBSubnetGroupDescription: "Subnet group for RDS"
-      DBSubnetGroupName: "ChatAppRDSSubnetGroup"
-      SubnetIds:
-        - Ref: ChatAppSubnet1
-        - Ref: ChatAppSubnet2
+    ChatAppVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: "10.0.240.0/20"
+        EnableDnsHostnames: True
+        EnableDnsSupport: True
+    
+    ChatAppVPCIGW:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        InternetGatewayId:
+          Ref: ChatAppIGW
+        VpcId: 
+          Ref: ChatAppVPC
 
-  ChatAppDB:
-    Type: AWS::RDS::DBInstance
-    Properties:
-      PubliclyAccessible: True
-      VPCSecurityGroups:
-        - Ref: ChatAppDBSG
-      DBSubnetGroupName: 
-        Ref: RDSSubnetGroup
-      AllocatedStorage: '20'
-      DBInstanceClass: db.t2.small
-      Engine: MySQL
-      MasterUsername: ${env:DB_USER}
-      MasterUserPassword: ${env:DB_PASS}
-      StorageType: gp2
-      
+    ChatAppRT:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId:
+          Ref: ChatAppVPC
+    
+    ChatAppPublicRoute:
+      Type: AWS::EC2::Route
+      Properties:
+        RouteTableId:
+          Ref: ChatAppRT
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId:
+          Ref: ChatAppIGW
+
+    ChatAppRouteTableAssociation1:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId:
+          Ref: ChatAppRT
+        SubnetId:
+          Ref: ChatAppSubnet1
+
+    ChatAppRouteTableAssociation2:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId:
+          Ref: ChatAppRT
+        SubnetId:
+          Ref: ChatAppSubnet2
+        
+    ChatAppSubnet1:
+      Type: AWS::EC2::Subnet
+      Properties:
+        CidrBlock: "10.0.241.0/24"
+        AvailabilityZone: "${self:provider.region}a"
+        VpcId:
+          Ref: ChatAppVPC
+
+    ChatAppSubnet2:
+      Type: AWS::EC2::Subnet
+      Properties:
+        CidrBlock: "10.0.242.0/24"
+        AvailabilityZone: "${self:provider.region}b"
+        VpcId:
+          Ref: ChatAppVPC
+
+    ChatAppDefaultSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: "Default SG."
+        VpcId:
+          Ref: ChatAppVPC
+
+    ChatAppDBSG:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: "Allow connection to RDS from home."
+        SecurityGroupIngress:
+          - CidrIp: ${env:SOURCE_IP}
+            IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+
+          - CidrIp: 
+              Fn::GetAtt: [ChatAppVPC, CidrBlock]
+            IpProtocol: tcp
+            FromPort: 3306
+            ToPort: 3306
+        VpcId:
+          Ref: ChatAppVPC
+
+    RDSSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: "Subnet group for RDS"
+        DBSubnetGroupName: "ChatAppRDSSubnetGroup"
+        SubnetIds:
+          - Ref: ChatAppSubnet1
+          - Ref: ChatAppSubnet2
+
+    ChatAppDB:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        PubliclyAccessible: True
+        VPCSecurityGroups:
+          - Ref: ChatAppDBSG
+        DBSubnetGroupName: 
+          Ref: RDSSubnetGroup
+        AllocatedStorage: '20'
+        DBInstanceClass: db.t2.small
+        Engine: MySQL
+        MasterUsername: ${env:DB_USER}
+        MasterUserPassword: ${env:DB_PASS}
+        StorageType: gp2
+
+    ChatAppAuthUI:
+      Type: AWS::Cognito::UserPoolUICustomizationAttachment
+      Properties:
+        ClientId:
+          Ref: ChatAppUserPoolClient
+        UserPoolId:
+          Ref: ChatAppUserPools
+        CSS: ".background-customizable {
+          background-color: #2A2A2A;
+        }"

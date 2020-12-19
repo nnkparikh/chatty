@@ -155,48 +155,6 @@ resources:
         Fn::GetAtt: [ChatAppDB, Endpoint.Port]
 
   Resources:
-    ChatAppUserPools:
-        Type: AWS::Cognito::UserPool
-        Properties:
-          UserPoolName: chatapp
-          AliasAttributes:
-            - phone_number
-            - email
-            - preferred_username
-          Policies:
-            PasswordPolicy:
-              MinimumLength: 8
-          Schema:
-            - Name: email
-              Required: True
-
-    ChatAppUserPoolClient:
-        Type: AWS::Cognito::UserPoolClient
-        Properties:
-          ClientName: chatapp-client
-          UserPoolId: 
-            Ref: ChatAppUserPools
-          SupportedIdentityProviders: 
-            - COGNITO
-          GenerateSecret: False
-          CallbackURLs:
-            - https://chatapp.neelparikh.net
-          AllowedOAuthFlows:
-            - code
-            - implicit
-          AllowedOAuthScopes:
-            - openid
-            - email
-            - profile
-          AllowedOAuthFlowsUserPoolClient: True
-    
-    ChatAppDomain:
-      Type: AWS::Cognito::UserPoolDomain
-      Properties:
-        Domain: chatapp-test
-        UserPoolId: 
-            Ref: ChatAppUserPools
-
     ChatAppIGW:
       Type: AWS::EC2::InternetGateway
       Properties:
@@ -314,14 +272,3 @@ resources:
         MasterUsername: ${env:DB_USER}
         MasterUserPassword: ${env:DB_PASS}
         StorageType: gp2
-
-    ChatAppAuthUI:
-      Type: AWS::Cognito::UserPoolUICustomizationAttachment
-      Properties:
-        ClientId:
-          Ref: ChatAppUserPoolClient
-        UserPoolId:
-          Ref: ChatAppUserPools
-        CSS: ".background-customizable {
-          background-color: #2A2A2A;
-        }"

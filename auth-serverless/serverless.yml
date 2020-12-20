@@ -1,0 +1,100 @@
+# Welcome to Serverless!
+#
+# This file is the main config file for your service.
+# It's very minimal at this point and uses default values.
+# You can always add more config options for more control.
+# We've included some commented out config examples here.
+# Just uncomment any of them to get that config option.
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+#
+# Happy Coding!
+
+service: auth-serverless
+# app and org for use with dashboard.serverless.com
+#app: your-app-name
+#org: your-org-name
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+# frameworkVersion: "=X.X.X"
+frameworkVersion: '>=1.28.0 <2.0.0'
+
+provider:
+  name: aws
+  runtime: go1.x
+  profile: neelparikh.dev
+  region: us-west-2
+  stage: dev
+  stackName: chatapp-auth
+
+package:
+  exclude:
+    - ./**
+  include:
+    - ./bin/**
+
+functions:
+  newUser:
+    handler: bin/postUserConfirmation
+    events:
+      - cognitoUserPool:
+          pool: chatapp
+          trigger: PostConfirmation
+          existing: true
+
+resources:
+  Resources:
+    ChatAppUserPools:
+        Type: AWS::Cognito::UserPool
+        Properties:
+          UserPoolName: chatapp
+          AliasAttributes:
+            - phone_number
+            - email
+            - preferred_username
+          Policies:
+            PasswordPolicy:
+              MinimumLength: 8
+          Schema:
+            - Name: email
+              Required: True
+
+    ChatAppUserPoolClient:
+        Type: AWS::Cognito::UserPoolClient
+        Properties:
+          ClientName: chatapp-client
+          UserPoolId: 
+            Ref: ChatAppUserPools
+          SupportedIdentityProviders: 
+            - COGNITO
+          GenerateSecret: False
+          CallbackURLs:
+            - https://chatapp.neelparikh.net
+          AllowedOAuthFlows:
+            - code
+            - implicit
+          AllowedOAuthScopes:
+            - openid
+            - email
+            - profile
+          AllowedOAuthFlowsUserPoolClient: True
+
+    ChatAppDomain:
+      Type: AWS::Cognito::UserPoolDomain
+      Properties:
+        Domain: chatapp-test
+        UserPoolId: 
+            Ref: ChatAppUserPools
+
+    ChatAppAuthUI:
+      Type: AWS::Cognito::UserPoolUICustomizationAttachment
+      Properties:
+        ClientId:
+          Ref: ChatAppUserPoolClient
+        UserPoolId:
+          Ref: ChatAppUserPools
+        CSS: ".background-customizable {
+          background-color: #2A2A2A;
+        }"

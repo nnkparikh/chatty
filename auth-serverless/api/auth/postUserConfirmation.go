@@ -61,7 +61,7 @@ func newUserHandler(event events.CognitoEventUserPoolsPostConfirmation) (events.
 	userIDStr := fmt.Sprintf("%x", userID)
 	userPoolID := event.UserPoolID
 	userName := event.UserName
-	customAttrNameID := "custom:id"
+	customAttrNameID := "dev:custom:id"
 	userAttrID := cognitoidentityprovider.AttributeType{Name: &customAttrNameID, Value: &userIDStr}
 
 	userAttrs := []*cognitoidentityprovider.AttributeType{&userAttrID}
@@ -72,16 +72,19 @@ func newUserHandler(event events.CognitoEventUserPoolsPostConfirmation) (events.
 	}
 	// Create a Session with a custom region
 	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("us-west-2"),
+		Region: aws.String(os.Getenv("REGION")),
 	})
 	if err != nil {
 		log.Fatalf("Error occurred while creating session.")
 		os.Exit(1)
 	}
-	// Create a CognitoIdentityProvider client from just a session.
+	// Create a CognitoIdentityProvider client from a session.
 	svc := cognitoidentityprovider.New(sess)
-	svc.AdminUpdateUserAttributes(&userAttrInput)
-
+	resp, err := svc.AdminUpdateUserAttributes(&userAttrInput)
+	if err != nil {
+		log.Fatalf("Error occured updating user attribute: %s\n", err)
+	}
+	log.Printf("User attribute updated with response: %s\n", resp)
 	return event, nil
 }
 

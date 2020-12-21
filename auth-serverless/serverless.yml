@@ -25,9 +25,11 @@ provider:
   name: aws
   runtime: go1.x
   profile: neelparikh.dev
-  region: us-west-2
-  stage: dev
+  region: ${opt:region}
+  stage: ${opt:stage}
   stackName: chatapp-auth
+  environment:
+    REGION: ${opt:region}
 
 package:
   exclude:
@@ -37,6 +39,8 @@ package:
 
 functions:
   newUser:
+    role: 
+      Fn::GetAtt: [LamdaCognitoUserPoolRole, Arn]
     handler: bin/postUserConfirmation
     events:
       - cognitoUserPool:
@@ -45,7 +49,40 @@ functions:
           existing: true
 
 resources:
-  Resources:
+  Resources: 
+    LamdaCognitoUserPoolRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: LamdaCognitoUserPoolRole
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: AdminUpdateUserAttributes
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: "Allow"
+                  Action:
+                      - "cognito-idp:AdminUpdateUserAttributes"
+                  Resource:
+                    Fn::Join:
+                      - ""
+                      - - "arn:aws:cognito-idp:"
+                        - Ref: AWS::Region
+                        - ":"
+                        - Ref: AWS::AccountId
+                        - ":"
+                        - "userpool/"
+                        - Ref:  ChatAppUserPools
+        ManagedPolicyArns:
+          - "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+               
     ChatAppUserPools:
         Type: AWS::Cognito::UserPool
         Properties:
@@ -60,6 +97,11 @@ resources:
           Schema:
             - Name: email
               Required: True
+            - Name: id
+              AttributeDataType: String
+              DeveloperOnlyAttribute: True
+              Mutable: True
+
 
     ChatAppUserPoolClient:
         Type: AWS::Cognito::UserPoolClient
@@ -87,14 +129,3 @@ resources:
         Domain: chatapp-test
         UserPoolId: 
             Ref: ChatAppUserPools
-
-    ChatAppAuthUI:
-      Type: AWS::Cognito::UserPoolUICustomizationAttachment
-      Properties:
-        ClientId:
-          Ref: ChatAppUserPoolClient
-        UserPoolId:
-          Ref: ChatAppUserPools
-        CSS: ".background-customizable {
-          background-color: #2A2A2A;
-        }"

@@ -30,6 +30,8 @@ provider:
   stackName: chatapp-auth
   environment:
     REGION: ${opt:region}
+    CLIENT_ID: 
+      Ref: ChatAppUserPoolClient2
 
 package:
   exclude:
@@ -47,6 +49,13 @@ functions:
           pool: chatapp
           trigger: PostConfirmation
           existing: true
+  login:
+    handler: bin/login
+    events:
+      - http:
+          path: login
+          method: post
+          cors: true
 
 resources:
   Resources: 
@@ -102,8 +111,7 @@ resources:
               DeveloperOnlyAttribute: True
               Mutable: True
 
-
-    ChatAppUserPoolClient:
+    ChatAppUserPoolClient1:
         Type: AWS::Cognito::UserPoolClient
         Properties:
           ClientName: chatapp-client
@@ -122,6 +130,20 @@ resources:
             - email
             - profile
           AllowedOAuthFlowsUserPoolClient: True
+
+    ChatAppUserPoolClient2:
+        Type: AWS::Cognito::UserPoolClient
+        Properties:
+          ClientName: chatapp-lambda-client
+          UserPoolId: 
+            Ref: ChatAppUserPools
+          SupportedIdentityProviders: 
+            - COGNITO
+          GenerateSecret: False
+          ExplicitAuthFlows:
+            - ALLOW_USER_PASSWORD_AUTH
+            - ALLOW_CUSTOM_AUTH
+            - ALLOW_REFRESH_TOKEN_AUTH
 
     ChatAppDomain:
       Type: AWS::Cognito::UserPoolDomain
